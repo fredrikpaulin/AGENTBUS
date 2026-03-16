@@ -1,0 +1,55 @@
+{
+  "name": "agentbus",
+  "version": "0.1.0",
+  "description": "A CAN bus-inspired agent communication layer built on Bun",
+  "module": "index.js",
+  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./bus": "./lib/bus.js",
+    "./agent": "./lib/agent.js",
+    "./schema": "./lib/schema.js"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "start": "bun run index.js",
+    "demo": "bun run demo.js",
+    "test": "bun test tests/"
+  },
+  "keywords": [
+    "agent",
+    "bus",
+    "canbus",
+    "can",
+    "websocket",
+    "pubsub",
+    "messaging",
+    "bun",
+    "realtime",
+    "priority-queue"
+  ],
+  "author": {
+    "name": "Fredrik Paulin",
+    "email": "fredrik@rymdskepp.com",
+    "url": "https://github.com/fredrikpaulin"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fredrikpaulin/agentbus.git"
+  },
+  "homepage": "https://github.com/fredrikpaulin/agentbus",
+  "bugs": {
+    "url": "https://github.com/fredrikpaulin/agentbus/issues"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
