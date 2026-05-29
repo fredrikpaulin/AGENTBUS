@@ -149,6 +149,15 @@ describe("validateFrame", () => {
     expect(validateFrame({ id: "10", type: "data", sender: "a" })).toBe("id must be 0-2047");
   });
 
+  test("rejects non-integer id", () => {
+    expect(validateFrame({ id: 1.5, type: "data", sender: "a" })).toBe("id must be 0-2047");
+  });
+
+  test("rejects non-finite id", () => {
+    expect(validateFrame({ id: NaN, type: "data", sender: "a" })).toBe("id must be 0-2047");
+    expect(validateFrame({ id: Infinity, type: "data", sender: "a" })).toBe("id must be 0-2047");
+  });
+
   test("rejects missing id", () => {
     expect(validateFrame({ type: "data", sender: "a" })).toBe("id must be 0-2047");
   });
@@ -191,6 +200,19 @@ describe("validateFrame", () => {
 
   test("rejects priority above 7", () => {
     expect(validateFrame({ id: 0, type: "data", sender: "a", priority: 8 })).toBe("priority must be 0-7");
+  });
+
+  test("rejects non-numeric priority", () => {
+    expect(validateFrame({ id: 0, type: "data", sender: "a", priority: "bad" })).toBe("priority must be 0-7");
+  });
+
+  test("rejects non-integer priority", () => {
+    expect(validateFrame({ id: 0, type: "data", sender: "a", priority: 2.5 })).toBe("priority must be 0-7");
+  });
+
+  test("rejects non-finite priority", () => {
+    expect(validateFrame({ id: 0, type: "data", sender: "a", priority: NaN })).toBe("priority must be 0-7");
+    expect(validateFrame({ id: 0, type: "data", sender: "a", priority: Infinity })).toBe("priority must be 0-7");
   });
 
   test("accepts priority boundaries 0 and 7", () => {

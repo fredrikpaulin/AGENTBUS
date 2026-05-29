@@ -1,5 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { createBus } from "../lib/bus.js";
+import { createFrame } from "../lib/schema.js";
 import { setupBus, agent, cleanup, nextPort } from "./helpers.js";
 
 describe("bus server lifecycle", () => {
@@ -10,7 +11,10 @@ describe("bus server lifecycle", () => {
     expect(bus.agents).toBeInstanceOf(Map);
     expect(bus.subscriptions).toBeInstanceOf(Map);
     expect(bus.filters).toBeInstanceOf(Map);
+    expect(bus.filtersById).toBeInstanceOf(Map);
+    expect(bus.filtersBySender).toBeInstanceOf(Map);
     expect(bus.heartbeats).toBeInstanceOf(Map);
+    expect(bus.deliveryStats).toEqual({ sent: 0, backpressure: 0, dropped: 0 });
     server.stop(true);
   });
 
@@ -87,6 +91,51 @@ describe("bus agent registration", () => {
     }
 
     await cleanup(agents, server);
+  });
+
+  test("duplicate agent id does not replace the registered socket", async () => {
+    const { server, bus, url } = await setupBus();
+    const first = agent("dup-agent", { url, frameId: 10 });
+    await first.connect();
+    await Bun.sleep(100);
+
+    const originalSocket = bus.agents.get("dup-agent");
+    const duplicate = new WebSocket(url);
+    await new Promise((resolve) => duplicate.addEventListener("open", resolve));
+
+    const errors = [];
+    duplicate.addEventListener("message", (e) => errors.push(JSON.parse(e.data)));
+    duplicate.send(JSON.stringify(createFrame("heartbeat", "dup-agent", { id: 20 })));
+    await Bun.sleep(100);
+
+    expect(errors.some((f) => f.type === "error" && f.data === "agent id already registered")).toBe(true);
+    expect(bus.agents.get("dup-agent")).toBe(originalSocket);
+
+    duplicate.close();
+    await Bun.sleep(100);
+    expect(bus.agents.get("dup-agent")).toBe(originalSocket);
+
+    await cleanup([first], server);
+  });
+
+  test("registered socket cannot spoof another sender", async () => {
+    const { server, url } = await setupBus();
+    const ws = new WebSocket(url);
+    await new Promise((resolve) => ws.addEventListener("open", resolve));
+
+    const errors = [];
+    ws.addEventListener("message", (e) => errors.push(JSON.parse(e.data)));
+
+    ws.send(JSON.stringify(createFrame("heartbeat", "real-agent", { id: 10 })));
+    await Bun.sleep(100);
+    ws.send(JSON.stringify(createFrame("data", "other-agent", { id: 10, data: "spoofed" })));
+    await Bun.sleep(100);
+
+    expect(errors.some((f) => f.type === "error" && f.data === "frame sender must match registered agent")).toBe(true);
+
+    ws.close();
+    await Bun.sleep(50);
+    server.stop(true);
   });
 });
 
@@ -305,6 +354,37 @@ describe("bus priority arbitration", () => {
 
     await cleanup([hi, lo, r], server);
   });
+
+  test("separate bus instances keep arbitration queues isolated", async () => {
+    const busA = await setupBus();
+    const busB = await setupBus();
+
+    const senderA = agent("sender-a", { url: busA.url, frameId: 10 });
+    const receiverA = agent("receiver-a", { url: busA.url, frameId: 20 });
+    const senderB = agent("sender-b", { url: busB.url, frameId: 10 });
+    const receiverB = agent("receiver-b", { url: busB.url, frameId: 20 });
+
+    await Promise.all([senderA.connect(), receiverA.connect(), senderB.connect(), receiverB.connect()]);
+
+    receiverA.subscribe("shared");
+    receiverB.subscribe("shared");
+
+    const receivedA = [];
+    const receivedB = [];
+    receiverA.on("data", (f) => receivedA.push(f.data));
+    receiverB.on("data", (f) => receivedB.push(f.data));
+
+    await Bun.sleep(100);
+    senderA.send("shared", "from-a");
+    senderB.send("shared", "from-b");
+    await Bun.sleep(200);
+
+    expect(receivedA).toEqual(["from-a"]);
+    expect(receivedB).toEqual(["from-b"]);
+
+    await cleanup([senderA, receiverA], busA.server);
+    await cleanup([senderB, receiverB], busB.server);
+  });
 });
 
 describe("bus subscription management", () => {
@@ -333,7 +413,7 @@ describe("bus subscription management", () => {
 
     a.unsubscribe("temp-ch");
     await Bun.sleep(100);
-    expect(bus.subscriptions.get("temp-ch")?.size).toBe(0);
+    expect(bus.subscriptions.has("temp-ch")).toBe(false);
 
     await cleanup([a], server);
   });
@@ -349,7 +429,7 @@ describe("bus subscription management", () => {
 
     a.disconnect();
     await Bun.sleep(100);
-    expect(bus.subscriptions.get("orphan-ch")?.size).toBe(0);
+    expect(bus.subscriptions.has("orphan-ch")).toBe(false);
 
     server.stop(true);
   });

@@ -246,14 +246,20 @@ describe("acceptance filters", () => {
     await a.connect();
 
     a.addFilter("from:x");
+    a.addFilter("id:42");
     await Bun.sleep(100);
 
     const sizeBefore = bus.filters.size;
+    expect(bus.filtersBySender.has("x")).toBe(true);
+    expect(bus.filtersById.has(42)).toBe(true);
+
     a.disconnect();
     await Bun.sleep(100);
 
     // The ws entry should be removed from the filters map
     expect(bus.filters.size).toBe(sizeBefore - 1);
+    expect(bus.filtersBySender.has("x")).toBe(false);
+    expect(bus.filtersById.has(42)).toBe(false);
 
     server.stop(true);
   });

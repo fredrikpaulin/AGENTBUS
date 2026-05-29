@@ -9,9 +9,9 @@ export function nextPort() {
 }
 
 export async function setupBus(opts = {}) {
-  const port = opts.port ?? nextPort();
-  const { server, bus } = createBus({ port });
+  const { server, bus } = createBus({ ...opts, port: opts.port ?? 0 });
   await Bun.sleep(50);
+  const port = server.port;
   return { server, bus, port, url: `ws://localhost:${port}` };
 }
 
